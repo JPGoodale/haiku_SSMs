@@ -285,5 +285,6 @@ Datasets = {
     "mnist": create_mnist_dataset,
     "kmnist": create_kmnist_dataset,
     "mnist-classification": create_mnist_classification_dataset,
+    "kmnist-classification": create_kmnist_classification_dataset,
     "cifar-classification": create_cifar_classification_dataset,
 }

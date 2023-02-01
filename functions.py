@@ -3,6 +3,34 @@ import jax.numpy as jnp
 import haiku as hk
 from jax.numpy.linalg import inv, matrix_power
 from functools import partial
+from jax.numpy import broadcast_to
+from jax.tree_util import tree_map
+from typing import Optional
+
+
+def add_batch(nest, batch_size: Optional[int]):
+    broadcast = lambda x: broadcast_to(x, (batch_size,) + x.shape)
+    return tree_map(broadcast, nest)
+
+
+def layer_norm(x: jnp.ndarray) -> jnp.ndarray:
+    ln = hk.LayerNorm(axis=-1, create_scale=True, create_offset=True)
+    return ln(x)
+
+
+def discretize_bilinear(Lambda, B_tilde, Delta):
+    Identity = jnp.ones(Lambda.shape[0])
+    BL = 1 / (Identity - (Delta / 2.0) * Lambda)
+    Lambda_bar = BL * (Identity + (Delta / 2.0) * Lambda)
+    B_bar = (BL * Delta)[..., None] * B_tilde
+    return Lambda_bar, B_bar
+
+
+def discretize_zoh(Lambda, B_tilde, Delta):
+    Identity = jnp.ones(Lambda.shape[0])
+    Lambda_bar = jnp.exp(Lambda * Delta)
+    B_bar = (1/Lambda * (Lambda_bar-Identity))[..., None] * B_tilde
+    return Lambda_bar, B_bar
 
 
 def discretize(A, B, step, mode="zoh"):
@@ -100,6 +128,12 @@ def causal_convolution(u, K):
     return jnp.fft.irfft(out)[: u.shape[0]]
 
 
+def linear_recurrence(A, B, C, inputs, prev_state):
+    new_state = A @ prev_state + B @ inputs
+    out = C @ new_state
+    return out, new_state
+
+
 def log_step_initializer(dt_min=0.001, dt_max=0.1):
     def init(shape, dtype):
         uniform = hk.initializers.RandomUniform()
@@ -107,6 +141,46 @@ def log_step_initializer(dt_min=0.001, dt_max=0.1):
     return init
 
 
-def layer_norm(x: jnp.ndarray) -> jnp.ndarray:
-    ln = hk.LayerNorm(axis=-1, create_scale=True, create_offset=True)
-    return ln(x)
+def init_log_steps(shape, dtype):
+    H = shape[0]
+    log_steps = []
+    for i in range(H):
+        log_step = log_step_initializer()(shape=(1,), dtype=dtype)
+        log_steps.append(log_step)
+
+    return jnp.array(log_steps)
+
+
+def trunc_standard_normal(key, shape):
+    H, P, _ = shape
+    Cs = []
+    for i in range(H):
+        key, skey = jax.random.split(key)
+        C = jax.nn.initializers.lecun_normal()(skey, shape=(1, P, 2))
+        Cs.append(C)
+    return jnp.array(Cs)[:, 0]
+
+
+@jax.vmap
+def binary_operator(q_i, q_j):
+    A_i, b_i = q_i
+    A_j, b_j = q_j
+    return A_j * A_i, A_j * b_i + b_j
+
+
+def apply_ssm(A, B, C, input_sequence, conj_sym, bidirectional):
+    A_elements = A * jnp.ones((input_sequence.shape[0], A.shape[0]))
+    Bu_elements = jax.vmap(lambda u: B @ u)(input_sequence)
+
+    _, xs = jax.lax.associative_scan(binary_operator, (A_elements, Bu_elements))
+
+    if bidirectional:
+        _, xs2 = jax.lax.associative_scan(binary_operator,
+                                          (A_elements, Bu_elements),
+                                          reverse=True)
+        xs = jnp.concatenate((xs, xs2), axis=-1)
+
+    if conj_sym:
+        return jax.vmap(lambda x: 2*(C @ x).real)(xs)
+    else:
+        return jax.vmap(lambda x: (C @ x).real)(xs)

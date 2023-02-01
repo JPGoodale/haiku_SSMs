@@ -6,7 +6,8 @@ from hippox.main import Hippo
 from typing import Optional
 from functions import log_step_initializer,\
     kernel_DPLR, s4d_kernel_zoh, discrete_DPLR, \
-    s4d_ssm, scan_SSM, causal_convolution, layer_norm
+    s4d_ssm, scan_SSM, causal_convolution, layer_norm, \
+    linear_recurrence, add_batch
 
 
 class S4(hk.Module):
@@ -100,7 +101,7 @@ class S4(hk.Module):
 
 @dataclasses.dataclass
 class S4Block(hk.Module):
-    s4_layer: S4
+    ssm: S4
     d_model: int
     dropout_rate: float
     prenorm: bool = True
@@ -113,7 +114,7 @@ class S4Block(hk.Module):
         skip = x
         if self.prenorm:
             x = layer_norm(x)
-        x = hk.vmap(self.s4_layer, in_axes=1, out_axes=1, split_rng=True)(x)
+        x = hk.vmap(self.ssm, in_axes=1, out_axes=1, split_rng=True)(x)
         x = hk.dropout(hk.next_rng_key(), self.dropout_rate, x)
         if self.glu:
             x = hk.Linear(self.d_model)(x) * jax.nn.sigmoid(hk.Linear(self.d_model)(x))
@@ -137,7 +138,7 @@ class Embedding(hk.Module):
 
 @dataclasses.dataclass
 class S4Stack(hk.Module):
-    s4_layer: S4
+    ssm: S4
     d_model: int
     n_layers: int
     d_output: int
@@ -158,7 +159,7 @@ class S4Stack(hk.Module):
         self._decoder = hk.Linear(self.d_output)
         self._layers = [
             S4Block(
-                s4_layer=self.s4_layer,
+                ssm=self.ssm,
                 prenorm=self.prenorm,
                 d_model=self.d_model,
                 dropout_rate=self.dropout_rate,
