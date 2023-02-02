@@ -10,8 +10,6 @@ https://github.com/srush/annotated-s4 - Flax implementation of S4 models (S4, S4
 
 https://github.com/lindermanlab/S5 - Flax implementation of S5 (original paper version)
 
-https://github.com/HazyResearch/state-spaces
-
 ## Papers
 Efficiently Modeling Long Sequences with Structured State Spaces: https://arxiv.org/abs/2111.00396
 
