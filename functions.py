@@ -7,6 +7,8 @@ from jax.numpy import broadcast_to
 from jax.tree_util import tree_map
 from typing import Optional
 
+# Most of these are taken directly from either https://github.com/srush/annotated-s4 or
+# https://github.com/lindermanlab/S5, with some minor changes here and there.
 
 def add_batch(nest, batch_size: Optional[int]):
     broadcast = lambda x: broadcast_to(x, (batch_size,) + x.shape)

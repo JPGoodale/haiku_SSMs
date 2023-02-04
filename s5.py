@@ -3,7 +3,6 @@ import jax
 import jax.numpy as jnp
 import haiku as hk
 from hippox.main import Hippo
-# from hippox_tests import Hippo
 from typing import Optional
 from functions import init_log_steps, discretize_zoh, discretize_bilinear, apply_ssm, trunc_standard_normal
 
@@ -113,8 +112,8 @@ class S5Block(hk.Module):
     ssm: S5
     d_model: int
     dropout_rate: float
-    activation: str = 'gelu'
-    prenorm: bool = False
+    activation: str
+    prenorm: bool
     istraining: bool = True
     name: Optional[str] = None
 
@@ -160,9 +159,9 @@ class S5Stack(hk.Module):
     ssm: S5
     d_model: int
     n_layers: int
-    dropout_rate: float = 0.2
-    activation: str = 'gelu'
-    prenorm: bool = False
+    dropout_rate: float
+    activation: str
+    prenorm: bool
     istraining: bool = True
     name: Optional[str] = None
 
@@ -202,11 +201,11 @@ class S5Classifier(hk.Module):
     d_model: int
     d_output: int
     n_layers: int
+    dropout_rate: float
     padded: bool
-    dropout_rate: float = 0.2
-    activation: str = 'gelu'
+    activation: str = 'half_glu2'
     mode: str = 'pool'
-    prenorm: bool = False
+    prenorm: bool = True
     istraining: bool = True
     name: Optional[str] = None
 

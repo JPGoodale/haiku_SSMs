@@ -21,11 +21,12 @@ N_LAYERS: int = 6
 N_BLOCKS: int = 8
 EPOCHS: int = 100
 BATCH_SIZE: int = 128
-LEARNING_RATE: float = 0.001
+DROPOUT_RATE: float = 0.5
+LEARNING_RATE: float = 0.005
 WEIGHT_DECAY: float = 0.01
 BASIS_MEASURE: str = 'legs'
-DATASET = 'kmnist-classification'
-SEED = 0
+DATASET = 'mnist-classification'
+SEED = 42
 
 
 class Dataset(NamedTuple):
@@ -50,7 +51,7 @@ class TrainingState(NamedTuple):
     rng_key: jnp.ndarray
 
 
-optimizer = optax.adam(LEARNING_RATE)
+optimizer = optax.adamw(LEARNING_RATE, weight_decay=WEIGHT_DECAY)
 
 
 @partial(jnp.vectorize, signature="(c),()->()")
@@ -177,8 +178,7 @@ def validation_epoch(
 def main():
     torch.random.manual_seed(SEED)
     key = jax.random.PRNGKey(SEED)
-    key, rng, train_rng = jax.random.split(key, num=3)
-    rng, init_rng = jax.random.split(rng)
+    rng, init_rng = jax.random.split(key)
 
     @hk.transform
     def forward(x) -> hk.transform:
@@ -192,7 +192,8 @@ def main():
             D_MODEL,
             ds.n_classes,
             N_LAYERS,
-            padded=False
+            DROPOUT_RATE,
+            padded=False,
         )
         return hk.vmap(neural_net, split_rng=False)(x)
 
