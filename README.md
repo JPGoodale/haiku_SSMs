@@ -1,6 +1,6 @@
 # Structured State Space Models in Haiku
 Structured State-Space Models implemented in Haiku.
-Currently contains an S4/S4D model + dataloaders for sequence prediction and classification on a few image datasets.
+Currently contains S4/S4D and S5 models + dataloaders for sequence prediction and classification on a few image datasets.
 
 ## References
 ### Repositories
