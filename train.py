@@ -35,14 +35,15 @@ class Dataset(NamedTuple):
     n_classes: int
     seq_length: int
     d_input: int
+    train_size: int
     classification: bool
 
 
 def create_dataset(dataset: str, batch_size: int) -> Dataset:
     classification = 'classification' in dataset
     dataset_init = Datasets[dataset]
-    trainloader, testloader, n_classes, seq_length, d_input = dataset_init(batch_size)
-    return Dataset(trainloader, testloader, n_classes, seq_length, d_input, classification)
+    trainloader, testloader, n_classes, seq_length, d_input, train_size = dataset_init(batch_size)
+    return Dataset(trainloader, testloader, n_classes, seq_length, d_input, train_size, classification)
 
 
 class TrainingState(NamedTuple):
@@ -51,7 +52,12 @@ class TrainingState(NamedTuple):
     rng_key: jnp.ndarray
 
 
-optimizer = optax.adamw(LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+def create_optimizer(dataset: Dataset, warmup_end: int = 1) -> optax.GradientTransformation:
+    steps_per_epoch = int(dataset.train_size / BATCH_SIZE)
+    decay_steps = steps_per_epoch * EPOCHS - (steps_per_epoch * warmup_end)
+    lr_schedule = optax.cosine_decay_schedule(init_value=1e-3, decay_steps=decay_steps)
+    optimizer = optax.adamw(lr_schedule, weight_decay=WEIGHT_DECAY)
+    return optimizer
 
 
 @partial(jnp.vectorize, signature="(c),()->()")
@@ -65,11 +71,12 @@ def compute_accuracy(logits, label):
     return jnp.argmax(logits) == label
 
 
-@partial(jax.jit, static_argnums=(3, 4))
+@partial(jax.jit, static_argnums=(3, 4, 5))
 def update(
         state: TrainingState,
         inputs: jnp.ndarray,
         targets: jnp.ndarray,
+        optimizer: optax.GradientTransformation,
         model: hk.transform,
         classification: bool = False
 ) -> Tuple[TrainingState, _Metrics]:
@@ -133,6 +140,7 @@ def training_epoch(
         state: TrainingState,
         trainloader: DataLoader,
         model: hk.transform,
+        optimizer: optax.GradientTransformation,
         classification: bool = False,
 ) -> Tuple[TrainingState, jnp.ndarray, jnp.ndarray]:
 
@@ -142,7 +150,7 @@ def training_epoch(
         targets = jnp.array(targets.numpy())
         state, metrics = update(
             state, inputs, targets,
-            model, classification
+            optimizer, model, classification
         )
         batch_losses.append(metrics['loss'])
         batch_accuracies.append(metrics['accuracy'])
@@ -198,9 +206,10 @@ def main():
         return hk.vmap(neural_net, split_rng=False)(x)
 
     ds = create_dataset(DATASET, BATCH_SIZE)
+    optim = create_optimizer(ds)
     init_data = jnp.array(next(iter(ds.trainloader))[0].numpy())
     initial_params = forward.init(init_rng, init_data)
-    initial_opt_state = optimizer.init(initial_params)
+    initial_opt_state = optim.init(initial_params)
 
     state = TrainingState(
         params=initial_params,
@@ -214,6 +223,7 @@ def main():
             state,
             ds.trainloader,
             forward,
+            optim,
             ds.classification
         )
         print(f"[*] Running Epoch {epoch + 1} Validation...")

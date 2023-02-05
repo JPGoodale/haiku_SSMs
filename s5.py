@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import haiku as hk
 from hippox.main import Hippo
 from typing import Optional
-from functions import init_log_steps, discretize_zoh, discretize_bilinear, apply_ssm, trunc_standard_normal
+from functions import init_log_steps, discretize_zoh, discretize_bilinear, apply_ssm
 
 
 class S5(hk.Module):
@@ -31,7 +31,7 @@ class S5(hk.Module):
 
         _hippo = Hippo(
             state_size=state_size,
-            measure_family=basis_measure,
+            basis_measure=basis_measure,
             conj_sym=conj_sym,
             block_diagonal=True,
             n_blocks=n_blocks,

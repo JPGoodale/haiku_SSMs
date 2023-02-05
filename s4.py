@@ -6,14 +6,13 @@ from hippox.main import Hippo
 from typing import Optional
 from functions import log_step_initializer,\
     kernel_DPLR, s4d_kernel_zoh, discrete_DPLR, \
-    s4d_ssm, scan_SSM, causal_convolution, layer_norm, \
-    linear_recurrence, add_batch
+    s4d_ssm, scan_SSM, causal_convolution, layer_norm
 
 
 class S4(hk.Module):
     def __init__(self,
                  state_size: int,
-                 measure: str,
+                 basis_measure: str,
                  seq_length: int,
                  dplr: bool,
                  inference_mode: bool = False,
@@ -25,7 +24,7 @@ class S4(hk.Module):
 
         _hippo = Hippo(
             state_size=state_size,
-            measure_family=measure,
+            basis_measure=basis_measure,
             dplr=dplr,
         )
         _hippo_params = _hippo()

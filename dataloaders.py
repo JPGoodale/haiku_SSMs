@@ -1,10 +1,12 @@
 import jax
 import numpy as np
 import torch
+import torchtext
 import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
+from datasets import load_dataset, DatasetDict
 
 
 # ### $sin(x)$
@@ -34,6 +36,8 @@ def create_sin_x_dataset(n_examples=1024, batch_size=128):
     train = TensorDataset(data, data)
     test = TensorDataset(data[:1], data[:1])
 
+    TRAIN_SIZE = len(train)
+
     # Return data loaders, with the provided batch size
     trainloader = torch.utils.data.DataLoader(
         train, batch_size=batch_size, shuffle=True
@@ -42,7 +46,7 @@ def create_sin_x_dataset(n_examples=1024, batch_size=128):
         test, batch_size=batch_size, shuffle=False
     )
 
-    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
+    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
 
 
 # ### $sin(ax + b)$
@@ -127,6 +131,8 @@ def create_mnist_dataset(batch_size=128):
         "./data", train=False, download=True, transform=tf
     )
 
+    TRAIN_SIZE = len(train)
+
     # Return data loaders, with the provided batch size
     trainloader = torch.utils.data.DataLoader(
         train,
@@ -139,7 +145,7 @@ def create_mnist_dataset(batch_size=128):
         shuffle=False,
     )
 
-    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
+    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
 
 
 def create_kmnist_dataset(batch_size=128):
@@ -164,6 +170,8 @@ def create_kmnist_dataset(batch_size=128):
         "./data", train=False, download=True, transform=tf
     )
 
+    TRAIN_SIZE = len(train)
+
     # Return data loaders, with the provided batch size
     trainloader = torch.utils.data.DataLoader(
         train,
@@ -176,7 +184,7 @@ def create_kmnist_dataset(batch_size=128):
         shuffle=False,
     )
 
-    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
+    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
 
 
 # ### MNIST Classification
@@ -201,6 +209,8 @@ def create_mnist_classification_dataset(batch_size=128):
         "./data", train=False, download=True, transform=tf
     )
 
+    TRAIN_SIZE = len(train)
+
     # Return data loaders, with the provided batch size
     trainloader = torch.utils.data.DataLoader(
         train, batch_size=batch_size, shuffle=True
@@ -209,7 +219,7 @@ def create_mnist_classification_dataset(batch_size=128):
         test, batch_size=batch_size, shuffle=False
     )
 
-    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
+    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
 
 
 def create_kmnist_classification_dataset(batch_size=128):
@@ -232,6 +242,8 @@ def create_kmnist_classification_dataset(batch_size=128):
         "./data", train=False, download=True, transform=tf
     )
 
+    TRAIN_SIZE = len(train)
+
     # Return data loaders, with the provided batch size
     trainloader = torch.utils.data.DataLoader(
         train, batch_size=batch_size, shuffle=True
@@ -240,7 +252,7 @@ def create_kmnist_classification_dataset(batch_size=128):
         test, batch_size=batch_size, shuffle=False
     )
 
-    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
+    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
 
 
 # ### CIFAR-10 Classification
@@ -267,6 +279,8 @@ def create_cifar_classification_dataset(batch_size=128):
         "./data", train=False, download=True, transform=tf
     )
 
+    TRAIN_SIZE = len(train)
+
     # Return data loaders, with the provided batch size
     trainloader = torch.utils.data.DataLoader(
         train, batch_size=batch_size, shuffle=True
@@ -275,8 +289,90 @@ def create_cifar_classification_dataset(batch_size=128):
         test, batch_size=batch_size, shuffle=False
     )
 
-    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
+    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
 
+
+def create_imdb_classification_dataset(batch_size=128):
+    # Constants, the default max length is 4096
+    APPEND_BOS = False
+    APPEND_EOS = True
+    LOAD_WORDER = 20
+    MIN_FREQ = 15
+
+    SEQ_LENGTH, N_CLASSES, IN_DIM = 2048, 2, 135
+
+    # load data using huggingface datasets
+    dataset = load_dataset("imdb")
+    dataset = DatasetDict(train=dataset["train"], test=dataset["test"])
+
+    l_max = SEQ_LENGTH - int(APPEND_BOS) - int(APPEND_EOS)
+
+    # step one, byte level tokenization
+    dataset = dataset.map(
+        lambda example: {"tokens": list(example["text"])[:l_max]},
+        remove_columns=["text"],
+        keep_in_memory=True,
+        load_from_cache_file=False,
+        num_proc=max(LOAD_WORDER, 1),
+    )
+    # print("byte characters for first example:", dataset['train']['tokens'][0])
+
+    # step two, build vocabulary based on the byte characters, each character appear at least MIN_FREQ times
+    vocab = torchtext.vocab.build_vocab_from_iterator(
+        dataset["train"]["tokens"],
+        min_freq=MIN_FREQ,
+        specials=(
+                ["<pad>", "<unk>"]
+                + (["<bos>"] if APPEND_BOS else [])
+                + (["<eos>"] if APPEND_EOS else [])
+        ),
+    )
+
+    # step three, numericalize the tokens
+    vocab.set_default_index(vocab["<unk>"])
+
+    dataset = dataset.map(
+        lambda example: {
+            "input_ids": vocab(
+                (["<bos>"] if APPEND_BOS else [])
+                + example["tokens"]
+                + (["<eos>"] if APPEND_EOS else [])
+            )
+        },
+        remove_columns=["tokens"],
+        keep_in_memory=True,
+        load_from_cache_file=False,
+        num_proc=max(LOAD_WORDER, 1),
+    )
+    # print("numericalize result for first example:", dataset['train']['input_ids'][0])
+
+    dataset["train"].set_format(type="torch", columns=["input_ids", "label"])
+    dataset["test"].set_format(type="torch", columns=["input_ids", "label"])
+
+    def imdb_collate(batch):
+        batchfy_input_ids = [data["input_ids"] for data in batch]
+        batchfy_labels = torch.cat(
+            [data["label"].unsqueeze(0) for data in batch], dim=0
+        )
+        batchfy_input_ids = torch.nn.utils.rnn.pad_sequence(
+            batchfy_input_ids + [torch.zeros(SEQ_LENGTH)],
+            padding_value=vocab["<pad>"],
+            batch_first=True,
+            )
+        batchfy_input_ids = torch.nn.functional.one_hot(
+            batchfy_input_ids[:-1], IN_DIM
+        )
+        return batchfy_input_ids, batchfy_labels
+
+    trainloader = torch.utils.data.DataLoader(
+        dataset["train"], batch_size, shuffle=True, collate_fn=imdb_collate
+    )
+
+    testloader = torch.utils.data.DataLoader(
+        dataset["test"], batch_size, shuffle=True, collate_fn=imdb_collate
+    )
+
+    return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM
 
 
 Datasets = {
@@ -287,4 +383,5 @@ Datasets = {
     "mnist-classification": create_mnist_classification_dataset,
     "kmnist-classification": create_kmnist_classification_dataset,
     "cifar-classification": create_cifar_classification_dataset,
+    "imdb-classification": create_imdb_classification_dataset,
 }
