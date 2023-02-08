@@ -44,7 +44,6 @@ def discretize(A, B, step, mode="zoh"):
 
 
 def discrete_DPLR(Lambda, P, Q, B, C, step, L):
-    # Convert parameters to matrices
     B = B[:, jnp.newaxis]
     Ct = C[jnp.newaxis, :]
 
@@ -55,17 +54,14 @@ def discrete_DPLR(Lambda, P, Q, B, C, step, L):
     # Forward Euler
     A0 = (2.0 / step) * I + A
 
-    # Backward Euler
     D = jnp.diag(1.0 / ((2.0 / step) - Lambda))
     Qc = Q.conj().T.reshape(1, -1)
     P2 = P.reshape(-1, 1)
     A1 = D - (D @ P2 * (1.0 / (1 + (Qc @ D @ P2))) * Qc @ D)
 
-    # A bar and B bar
     Ab = A1 @ A0
     Bb = 2 * A1 @ B
 
-    # Recover Cbar from Ct
     Cb = Ct @ inv(I - matrix_power(Ab, L)).conj()
     return Ab, Bb, Cb.conj()
 
@@ -96,14 +92,11 @@ def s4d_kernel_zoh(A, C, step, L):
 
 @jax.jit
 def cauchy(v, omega, lambd):
-    """Cauchy matrix multiplication: (n), (l), (n) -> (l)"""
     cauchy_dot = lambda _omega: (v / (_omega - lambd)).sum()
     return jax.vmap(cauchy_dot)(omega)
 
 
 def kernel_DPLR(Lambda, P, Q, B, C, step, L):
-    # Evaluate at roots of unity
-    # Generating function is (-)z-transform, so we evaluate at (-)root
     Omega_L = jnp.exp((-2j * jnp.pi) * (jnp.arange(L) / L))
 
     aterm = (C.conj(), Q.conj())
@@ -112,7 +105,6 @@ def kernel_DPLR(Lambda, P, Q, B, C, step, L):
     g = (2.0 / step) * ((1.0 - Omega_L) / (1.0 + Omega_L))
     c = 2.0 / (1.0 + Omega_L)
 
-    # Reduction to core Cauchy kernel
     k00 = cauchy(aterm[0] * bterm[0], g, Lambda)
     k01 = cauchy(aterm[0] * bterm[1], g, Lambda)
     k10 = cauchy(aterm[1] * bterm[0], g, Lambda)

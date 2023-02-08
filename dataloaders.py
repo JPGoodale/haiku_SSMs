@@ -6,7 +6,6 @@ import torchvision
 import torchvision.transforms as transforms
 from torch.utils.data import TensorDataset
 from tqdm import tqdm
-from datasets import load_dataset, DatasetDict
 
 # Dataloaders taken directly from https://github.com/srush/annotated-s4.
 
