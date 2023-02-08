@@ -8,15 +8,8 @@ from torch.utils.data import TensorDataset
 from tqdm import tqdm
 from datasets import load_dataset, DatasetDict
 
+# dataloaders taken directly from https://github.com/srush/annotated-s4
 
-# ### $sin(x)$
-# **Task**: Overfit to a 8-bit quantized sin(x) from 0 - 2*Pi -- sampled 360 times.
-#
-#  @Note: The Feed-Forward model won't necessarily be able to fit this data (optimization is hard)
-#  As a sanity check, you can try running with N_CLASSES = 2 (-1, 1) and d_model = 1...
-#  this is the simplest "majority rule" experiment => gets 100% test accuracy.
-#
-#  @Note: RNN & S4 *should* fit this perfectly... but needs to be verified.
 def create_sin_x_dataset(n_examples=1024, batch_size=128):
     print("[*] Generating Toy Dataset: sin(x)...")
 
@@ -48,12 +41,6 @@ def create_sin_x_dataset(n_examples=1024, batch_size=128):
 
     return trainloader, testloader, N_CLASSES, SEQ_LENGTH, IN_DIM, TRAIN_SIZE
 
-
-# ### $sin(ax + b)$
-# **Task**: Fit arbitrary 8-bit quantized functions of the form sin(ax + b) from 0 - 2*Pi -- sampled 360 times.
-#
-# In this dataset, `a` controls amplitude and `b` controls phase and are sampled uniformly at random in prespecified
-# intervals.
 def create_sin_ax_b_dataset(n_examples=20000, batch_size=128):
     print("[*] Generating sin(ax + b) Dataset...")
 
